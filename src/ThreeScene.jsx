@@ -24,6 +24,7 @@ function ThreeScene() {
 
   return (
     <div className="three-wrapper">
+      <div id="lil-gui-container" />
       <div ref={containerRef} className="three-container" />
     </div>
   );

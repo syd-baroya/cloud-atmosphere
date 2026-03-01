@@ -1,10 +1,11 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import GUI from 'lil-gui'
 import cloudVert from './shaders/cloud.vert.glsl?raw'
 import cloudFrag from './shaders/cloud.frag.glsl?raw'
 import atmosphereFrag from './shaders/atmosphere.frag.glsl?raw'
 
-let scene, camera, controls, renderer, timer, cloudMesh, cloudMaterial, atmosphereMesh, planet, stars, sun;
+let scene, camera, controls, renderer, timer, cloudMesh, cloudMaterial, atmosphereMesh, planet, stars, sun, gui;
 
 export function init (container) {
     scene = new THREE.Scene();
@@ -19,6 +20,10 @@ export function init (container) {
     camera.position.set(0, 1.5, 3);
 
     controls = new OrbitControls(camera, container);
+    controls.enablePan = false;
+    // Clamp zoom: don't go inside the planet, don't go past the star field
+    controls.minDistance = 1.5;   // just outside atmosphere (planet r=1, atmosphere ~1.07)
+    controls.maxDistance = 50;   // star field extends to ~350, keep camera inside it
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio || 1);
@@ -78,8 +83,8 @@ export function init (container) {
     // Atmosphere glow: thin shell, limb brightening (drawn first, behind clouds)
     const atmosphereGeometry = new THREE.SphereGeometry(1.07, 64, 64);
     const atmosphereUniforms = {
-      uPower: { value: 2.0 },
-      uCoverage: { value: 0.8 },
+      uPower: { value: 3.0 },
+      uCoverage: { value: 1.0 },
       uAtmosphereColor: { value: new THREE.Color(0x88bbff) },
     };
 
@@ -98,12 +103,12 @@ export function init (container) {
     const cloudUniforms = {
       uTime: { value: 0 },
       uNoiseScale: { value: 1.5 },
-      uWorleyScale: { value: 4.5 },
-      uThreshold: { value: 0.08 },
+      uWorleyScale: { value: 4.0 },
+      uThreshold: { value: -0.08 },
       uSoftness: { value: 0.35 },
       uAlpha: { value: 0.55 },
-      uAbsorption: { value: 2.0 },
-      uRimStrength: { value: 0.9 },
+      uAbsorption: { value: 1.0 },
+      uRimStrength: { value: 0.2 },
       uLightDir: { value: new THREE.Vector3(1, 0.5, 1).normalize() },
       uInnerRadius: { value: 1.0 },
       uOuterRadius: { value: 1.02 },
@@ -118,6 +123,27 @@ export function init (container) {
     });
     cloudMesh = new THREE.Mesh(cloudGeometry, cloudMaterial);
     scene.add(cloudMesh);
+
+    // lil-gui: tweak shader uniforms (lives in #lil-gui-container, positioned over scene via CSS)
+    gui = new GUI({ title: 'Shaders', container: document.getElementById('lil-gui-container') });
+    const cloudFolder = gui.addFolder('Cloud');
+    cloudFolder.add(cloudUniforms.uNoiseScale, 'value', 0.5, 4, 0.01).name('Noise scale');
+    cloudFolder.add(cloudUniforms.uWorleyScale, 'value', 1, 10, 0.1).name('Worley scale');
+    cloudFolder.add(cloudUniforms.uThreshold, 'value', -0.2, 0.5, 0.01).name('Threshold');
+    cloudFolder.add(cloudUniforms.uSoftness, 'value', 0.05, 1, 0.01).name('Softness');
+    cloudFolder.add(cloudUniforms.uAlpha, 'value', 0.1, 1, 0.01).name('Alpha');
+    cloudFolder.add(cloudUniforms.uAbsorption, 'value', 0.5, 5, 0.1).name('Absorption');
+    cloudFolder.add(cloudUniforms.uRimStrength, 'value', 0, 2, 0.01).name('Rim strength');
+    cloudFolder.open();
+
+    const atmosphereFolder = gui.addFolder('Atmosphere');
+    atmosphereFolder.add(atmosphereUniforms.uPower, 'value', 0.5, 5, 0.1).name('Power');
+    atmosphereFolder.add(atmosphereUniforms.uCoverage, 'value', 0, 1, 0.01).name('Coverage');
+    const atmosphereColor = { color: '#88bbff' };
+    atmosphereFolder.addColor(atmosphereColor, 'color').name('Color').onChange((hex) => {
+      atmosphereUniforms.uAtmosphereColor.value.set(hex);
+    });
+    atmosphereFolder.open();
 }
 
 export function setAnimationLoop() {
@@ -168,6 +194,10 @@ export function dispose(container) {
   }
   if (sun) {
     sun.dispose();
+  }
+  if (gui) {
+    gui.destroy();
+    gui = null;
   }
   renderer.dispose();
   if (container.contains(renderer.domElement)) {

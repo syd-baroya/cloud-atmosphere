@@ -138,7 +138,7 @@ void main() {
 
   vec3 shadowColor = vec3(0.72, 0.72, 0.75);
   vec3 lightColor = vec3(1.0);
-  vec3 rimColor = vec3(0.92, 0.93, 0.95);
+  vec3 rimColor = vec3(0, 0, 0.95);
   vec3 cloudColor = mix(shadowColor, lightColor, lighting);
   cloudColor += fresnel * uRimStrength * rimColor;
   float alpha = density * uAlpha;

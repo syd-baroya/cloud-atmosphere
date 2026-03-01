@@ -29,6 +29,7 @@ body {
   display: flex;
   align-items: stretch;
   justify-content: center;
+  position: relative;
 }
 
 .three-container {
@@ -39,4 +40,28 @@ body {
   box-shadow:
     0 20px 25px -5px rgba(15, 23, 42, 0.4),
     0 8px 10px -6px rgba(15, 23, 42, 0.4);
+}
+
+/* GUI overlays the scene in the top-right */
+#lil-gui-container {
+  position: absolute !important;
+  top: 0;
+  right: 0;
+  z-index: 10;
+  pointer-events: none;
+}
+#lil-gui-container .lil-gui {
+  pointer-events: auto;
+}
+
+/* Stack folders vertically */
+#lil-gui-container .lil-gui.lil-root {
+  max-height: 100%;
+}
+#lil-gui-container .lil-gui.lil-root > .lil-children {
+  display: flex;
+  flex-direction: column;
+}
+#lil-gui-container .lil-gui.lil-root > .lil-children > .lil-gui {
+  flex-shrink: 0;
 }
