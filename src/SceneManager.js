@@ -1,11 +1,13 @@
-import * as THREE from 'three/webgpu'
+import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
+import cloudVert from './shaders/cloud.vert.glsl?raw'
+import cloudFrag from './shaders/cloud.frag.glsl?raw'
 
-let scene, camera, controls, renderer, geometry, material, cube, ambientLight, directionalLight;
+let scene, camera, controls, renderer, timer, cloudMesh, cloudMaterial, noiseTexture;
 
 export function init (container) {
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x111827);
+    scene.background = new THREE.Color(0xa8c8e0); // soft sky blue so cloud reads clearly
 
     camera = new THREE.PerspectiveCamera(
       75,
@@ -15,41 +17,53 @@ export function init (container) {
     );
     camera.position.z = 3;
 
-    controls = new OrbitControls(camera, container);
+    // controls = new OrbitControls(camera, container);
 
-    renderer = new THREE.WebGPURenderer({ antialias: true });
+    renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio || 1);
     renderer.setSize(container.clientWidth, container.clientHeight);
     container.appendChild(renderer.domElement);
 
-    geometry = new THREE.BoxGeometry();
-    material = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      roughness: 0.3,
-      metalness: 0.6,
+    timer = new THREE.Timer();
+
+    noiseTexture = new THREE.TextureLoader().load('/src/assets/noise3.png');
+    noiseTexture.wrapS = THREE.RepeatWrapping;
+    noiseTexture.wrapT = THREE.RepeatWrapping;
+    noiseTexture.magFilter = THREE.NearestMipmapLinearFilter;
+    noiseTexture.minFilter = THREE.NearestMipmapLinearFilter;
+
+    // Ray-marched cloud fullscreen quad (camera passed as uniform so shader compiles)
+    const cloudGeometry = new THREE.PlaneGeometry(10, 10);
+    const cloudUniforms = {
+      uTime: { value: 0 },
+      uResolution: { value: new THREE.Vector2() },
+      uNoiseTexture: { value: new THREE.Uniform(null) },
+    };
+    cloudMaterial = new THREE.ShaderMaterial({
+      vertexShader: cloudVert,
+      fragmentShader: cloudFrag,
+      uniforms: cloudUniforms,
     });
-    cube = new THREE.Mesh(geometry, material);
-    scene.add(cube);
-
-    ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    scene.add(ambientLight);
-
-    directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-    directionalLight.position.set(2, 4, 5);
-    scene.add(directionalLight);
-
+    cloudMesh = new THREE.Mesh(cloudGeometry, cloudMaterial);
+    cloudMesh.position.z = 2;
+    scene.add(cloudMesh);
 }
 
 export function setAnimationLoop() {
   renderer.setAnimationLoop(animate);
 }
 
-function animate() {
-  cube.rotation.x += 0.01;
-  cube.rotation.y += 0.015;
+function animate(timestamp) {
+  timer.update(timestamp); // Update internal state
+  const delta = timer.getDelta(); // Time since last frame
+  const elapsed = timer.getElapsed(); // Total time
 
+  cloudMaterial.uniforms.uTime.value = elapsed/5.0;
+  cloudMaterial.uniforms.uResolution.value.set(renderer.domElement.width*window.devicePixelRatio, renderer.domElement.height*window.devicePixelRatio);
+  cloudMaterial.uniforms.uNoiseTexture.value = noiseTexture;
+  
   renderer.render(scene, camera);
-  controls.update();
+  // controls.update();
 }
 
 
@@ -64,8 +78,10 @@ export function resize (container) {
 }
 
 export function dispose(container) {
-  geometry.dispose();
-  material.dispose();
+  if (cloudMesh) {
+    cloudMesh.geometry.dispose();
+    cloudMaterial.dispose();
+  }
   renderer.dispose();
   if (container.contains(renderer.domElement)) {
     container.removeChild(renderer.domElement);
