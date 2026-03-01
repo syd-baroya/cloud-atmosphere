@@ -1,6 +1,7 @@
 
 uniform float uTime;
 uniform float uNoiseScale;
+uniform float uWorleyScale;
 uniform float uThreshold;
 uniform float uSoftness;
 uniform float uAlpha;
@@ -76,6 +77,35 @@ float snoise(vec3 v){
                               dot(p2,x2), dot(p3,x3)));
 }
 
+// Hash for Worley: cell id -> random point in [0,1]^3
+vec3 hash33(vec3 p) {
+  vec3 q = vec3(
+    dot(p, vec3(127.1, 311.7, 74.7)),
+    dot(p + 1.0, vec3(269.5, 183.3, 123.4)),
+    dot(p + 2.0, vec3(419.2, 371.9, 257.1))
+  );
+  return fract(sin(q) * 43758.5453);
+}
+
+// Worley F1: distance to nearest cell center (gives cotton-ball puffs)
+float worley3D(vec3 p) {
+  vec3 id = floor(p);
+  vec3 u = fract(p);
+  float F1 = 1.0;
+  for (int z = -1; z <= 1; z++) {
+    for (int y = -1; y <= 1; y++) {
+      for (int x = -1; x <= 1; x++) {
+        vec3 offset = vec3(float(x), float(y), float(z));
+        vec3 cellId = id + offset;
+        vec3 fp = hash33(cellId);
+        float d = length(u - offset - fp);
+        F1 = min(F1, d);
+      }
+    }
+  }
+  return F1;
+}
+
 float fbm(vec3 p) {
     float total = 0.0;
     float amplitude = 0.5;
@@ -89,31 +119,60 @@ float fbm(vec3 p) {
     return total;
 }
 
+// Single density sample for gradient (puff * detail * shell at position p)
+float densityAt(vec3 p) {
+  float h = length(p);
+  float shell = smoothstep(uInnerRadius, uOuterRadius, h);
+  float worleyF1 = worley3D(p * uWorleyScale);
+  float puff = 1.0 - smoothstep(0.25, 0.75, worleyF1);
+  vec3 wind = vec3(0.1, 0.0, 0.05);
+  float noise = fbm(p * uNoiseScale + uTime * wind);
+  float detail = smoothstep(uThreshold, uThreshold + uSoftness, noise);
+  return puff * detail * shell;
+}
+
 void main() {
 
   float height = length(vWorldPos);
   float shell = smoothstep(uInnerRadius, uOuterRadius, height);
 
   vec3 wind = vec3(0.1, 0.0, 0.05);
+  vec3 pos = vWorldPos * uNoiseScale + uTime * wind;
 
-  float noise = fbm(vWorldPos * uNoiseScale + uTime * wind);
+  // Worley: low F1 = inside a puff. Shape the puffs with smoothstep.
+  float worleyF1 = worley3D(vWorldPos * uWorleyScale);
+  float puff = 1.0 - smoothstep(0.25, 0.75, worleyF1);
 
-  float density = smoothstep(uThreshold, uThreshold + uSoftness, noise);
-  density *= shell;
+  // FBM adds wispy detail and variation on top of the puffs
+  float noise = fbm(pos);
+  float detail = smoothstep(uThreshold, uThreshold + uSoftness, noise);
 
-  float lightFactor = dot(normalize(vWorldPos), normalize(uLightDir));
+  float density = puff * detail * shell;
+
+  // Gradient of density -> normal for 3D puff lighting (each blob lit like a sphere)
+  const float eps = 0.015;
+  float dx = densityAt(vWorldPos + vec3(eps, 0.0, 0.0)) - densityAt(vWorldPos - vec3(eps, 0.0, 0.0));
+  float dy = densityAt(vWorldPos + vec3(0.0, eps, 0.0)) - densityAt(vWorldPos - vec3(0.0, eps, 0.0));
+  float dz = densityAt(vWorldPos + vec3(0.0, 0.0, eps)) - densityAt(vWorldPos - vec3(0.0, 0.0, eps));
+  vec3 grad = vec3(dx, dy, dz);
+  float gradLen = length(grad);
+  vec3 cloudNormal = gradLen > 0.001 ? normalize(grad) : normalize(vWorldPos);
+  // Outward normal (from dense to sparse) so lit side faces the sun
+  cloudNormal = -cloudNormal;
+  float lightFactor = dot(cloudNormal, normalize(uLightDir));
   lightFactor = lightFactor * 0.5 + 0.5;
 
   float absorption = exp(-density * uAbsorption);
   float lighting = mix(lightFactor, 1.0, absorption);
 
-  float fresnel = pow(1.0 - dot(normalize(vNormal), normalize(vViewDir)), 3.0);
+  float fresnel = pow(1.0 - dot(cloudNormal, normalize(vViewDir)), 3.0);
 
-  vec3 shadowColor = vec3(0.6, 0.7, 0.8);
+  vec3 shadowColor = vec3(0.72, 0.72, 0.75);
   vec3 lightColor = vec3(1.0);
+  vec3 rimColor = vec3(0.92, 0.93, 0.95);
 
   vec3 cloudColor = mix(shadowColor, lightColor, lighting);
-  cloudColor += fresnel * uRimStrength * vec3(0.6, 0.8, 1.0);
+  cloudColor += fresnel * uRimStrength * rimColor;
 
   float alpha = density * uAlpha;
 

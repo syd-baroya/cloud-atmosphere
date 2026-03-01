@@ -7,7 +7,7 @@ let scene, camera, controls, renderer, timer, cloudMesh, cloudMaterial, noiseTex
 
 export function init (container) {
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xa8c8e0); // soft sky blue so cloud reads clearly
+    scene.background = new THREE.Color(0xa8c8e0);
 
     camera = new THREE.PerspectiveCamera(
       60,
@@ -46,19 +46,20 @@ export function init (container) {
     sun.position.set(5, 3, 5);
     scene.add(sun);
 
-    // Ray-marched cloud fullscreen quad (camera passed as uniform so shader compiles)
-    const cloudGeometry = new THREE.SphereGeometry(1.03, 128, 128);
+    // Cloud layer: thicker shell (1.0–1.07) for more 3D volume
+    const cloudGeometry = new THREE.SphereGeometry(1.07, 128, 128);
     const cloudUniforms = {
       uTime: { value: 0 },
       uNoiseScale: { value: 1.5 },
+      uWorleyScale: { value: 3.5 },
       uThreshold: { value: 0.2 },
       uSoftness: { value: 0.25 },
-      uAlpha: { value: 0.6 },
+      uAlpha: { value: 0.55 },
       uAbsorption: { value: 2.0 },
-      uRimStrength: { value: 0.8 },
+      uRimStrength: { value: 0.9 },
       uLightDir: { value: new THREE.Vector3(1, 0.5, 1).normalize() },
       uInnerRadius: { value: 1.0 },
-      uOuterRadius: { value: 1.03 }
+      uOuterRadius: { value: 1.07 }
     };
     cloudMaterial = new THREE.ShaderMaterial({
       vertexShader: cloudVert,
@@ -82,9 +83,8 @@ function animate(timestamp) {
   const elapsed = timer.getElapsed(); // Total time
 
   cloudMaterial.uniforms.uTime.value = elapsed;
-  
+  controls.update();
   renderer.render(scene, camera);
-  // controls.update();
 }
 
 
