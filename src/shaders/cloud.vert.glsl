@@ -1,12 +1,13 @@
-varying vec2 vUv;
+varying vec3 vWorldPos;
+varying vec3 vNormal;
+varying vec3 vViewDir;
 
 void main() {
-  vUv = uv;
+    vec4 worldPos = modelMatrix * vec4(position, 1.0);
+    vWorldPos = worldPos.xyz;
 
-  vec4 modelPosition = modelMatrix * vec4(position, 1.0);
-  vec4 viewPosition = viewMatrix * modelPosition;
-  vec4 projectedPosition = projectionMatrix * viewPosition;
+    vNormal = normalize(normalMatrix * normal);
+    vViewDir = normalize(cameraPosition - worldPos.xyz);
 
-  gl_Position = projectedPosition;
+    gl_Position = projectionMatrix * viewMatrix * worldPos;
 }
-

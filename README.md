@@ -1,2 +1,2 @@
-# Colored Clouds
-A cloud layer that reacts to colored lights.
+# Cloud Atmosphere
+A cloud atmosphere over a planet.

@@ -1,88 +1,121 @@
 
 uniform float uTime;
-uniform vec2 uResolution;
-uniform sampler2D uNoiseTexture;
+uniform float uNoiseScale;
+uniform float uThreshold;
+uniform float uSoftness;
+uniform float uAlpha;
+uniform float uAbsorption;
+uniform float uRimStrength;
+uniform vec3 uLightDir;
+uniform float uInnerRadius;
+uniform float uOuterRadius;
 
-#define MAX_STEPS 100
+varying vec3 vWorldPos;
+varying vec3 vNormal;
+varying vec3 vViewDir;
 
-float sdSphere(vec3 p, float radius) {
-  return length(p) - radius;
-}
 
-float noise(vec3 x ) {
-  vec3 p = floor(x);
-  vec3 f = fract(x);
-  f = f*f*(3.0-2.0*f);
+vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
 
-  vec2 uv = (p.xy+vec2(37.0,239.0)*p.z) + f.xy;
-  vec2 tex = textureLod(uNoiseTexture,(uv+0.5)/256.0,0.0).yx;
+float snoise(vec3 v){
+  const vec2  C = vec2(1.0/6.0, 1.0/3.0);
+  const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
 
-  return mix( tex.x, tex.y, f.z ) * 2.0 - 1.0;
+  vec3 i  = floor(v + dot(v, C.yyy));
+  vec3 x0 = v - i + dot(i, C.xxx);
+
+  vec3 g = step(x0.yzx, x0.xyz);
+  vec3 l = 1.0 - g;
+  vec3 i1 = min(g.xyz, l.zxy);
+  vec3 i2 = max(g.xyz, l.zxy);
+
+  vec3 x1 = x0 - i1 + C.xxx;
+  vec3 x2 = x0 - i2 + C.yyy;
+  vec3 x3 = x0 - D.yyy;
+
+  i = mod(i, 289.0);
+  vec4 p = permute(permute(permute(
+            i.z + vec4(0.0, i1.z, i2.z, 1.0))
+          + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+          + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+
+  vec4 j = p - 49.0 * floor(p / 49.0);
+  vec4 x_ = floor(j / 7.0);
+  vec4 y_ = floor(j - 7.0 * x_);
+
+  vec4 x = (x_ *2.0 + 1.0)/7.0 - 1.0;
+  vec4 y = (y_ *2.0 + 1.0)/7.0 - 1.0;
+
+  vec4 h = 1.0 - abs(x) - abs(y);
+  vec4 b0 = vec4(x.xy, y.xy);
+  vec4 b1 = vec4(x.zw, y.zw);
+
+  vec4 s0 = floor(b0)*2.0 + 1.0;
+  vec4 s1 = floor(b1)*2.0 + 1.0;
+  vec4 sh = -step(h, vec4(0.0));
+
+  vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy;
+  vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
+
+  vec3 p0 = vec3(a0.xy, h.x);
+  vec3 p1 = vec3(a0.zw, h.y);
+  vec3 p2 = vec3(a1.xy, h.z);
+  vec3 p3 = vec3(a1.zw, h.w);
+
+  vec4 norm = inversesqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2,p2), dot(p3,p3)));
+  p0 *= norm.x;
+  p1 *= norm.y;
+  p2 *= norm.z;
+  p3 *= norm.w;
+
+  vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1),
+                          dot(x2,x2), dot(x3,x3)), 0.0);
+  m = m * m;
+  return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1),
+                              dot(p2,x2), dot(p3,x3)));
 }
 
 float fbm(vec3 p) {
-  vec3 q = p + uTime * 0.5 * vec3(1.0, -0.2, -1.0);
+    float total = 0.0;
+    float amplitude = 0.5;
+    float frequency = 1.0;
 
-  float f = 0.0;
-  float scale = 0.5;
-  float factor = 2.02;
-
-  for (int i = 0; i < 6; i++) {
-      f += scale * noise(q);
-      q *= factor;
-      factor += 0.21;
-      scale *= 0.5;
-  }
-
-  return f;
-}
-
-float scene(vec3 p) {
-  float distance = sdSphere(p, 1.0);
-
-  float f = fbm(p);
-
-  return -distance + f;
-}
-
-const float MARCH_SIZE = 0.08;
-
-vec4 raymarch(vec3 rayOrigin, vec3 rayDirection) {
-  float depth = 0.0;
-  vec3 p = rayOrigin + depth * rayDirection;
-  
-  vec4 res = vec4(0.0);
-
-  for (int i = 0; i < MAX_STEPS; i++) {
-    float density = scene(p);
-
-    // We only draw the density if it's greater than 0
-    if (density > 0.0) {
-      vec4 color = vec4(mix(vec3(1.0,1.0,1.0), vec3(0.0, 0.0, 0.0), density), density );
-      color.rgb *= color.a;
-      res += color*(1.0-res.a);
+    for(int i = 0; i < 4; i++) {
+        total += amplitude * snoise(p * frequency);
+        frequency *= 2.0;
+        amplitude *= 0.5;
     }
-
-    depth += MARCH_SIZE;
-    p = rayOrigin + depth * rayDirection;
-  }
-
-  return res;
+    return total;
 }
 
 void main() {
-  vec2 uv = gl_FragCoord.xy/uResolution.xy;
-  uv -= 0.5;
-  uv.x *= uResolution.x / uResolution.y;
 
-  // Ray Origin - camera
-  vec3 ro = vec3(0.0, 0.0, 5.0);
-  // Ray Direction
-  vec3 rd = normalize(vec3(uv, -1.0));
-  
-  vec3 color = vec3(0.0);
-  vec4 res = raymarch(ro, rd);
-  color = res.rgb;
+  float height = length(vWorldPos);
+  float shell = smoothstep(uInnerRadius, uOuterRadius, height);
 
-  gl_FragColor = vec4(color, 1.0);
+  vec3 wind = vec3(0.1, 0.0, 0.05);
+
+  float noise = fbm(vWorldPos * uNoiseScale + uTime * wind);
+
+  float density = smoothstep(uThreshold, uThreshold + uSoftness, noise);
+  density *= shell;
+
+  float lightFactor = dot(normalize(vWorldPos), normalize(uLightDir));
+  lightFactor = lightFactor * 0.5 + 0.5;
+
+  float absorption = exp(-density * uAbsorption);
+  float lighting = mix(lightFactor, 1.0, absorption);
+
+  float fresnel = pow(1.0 - dot(normalize(vNormal), normalize(vViewDir)), 3.0);
+
+  vec3 shadowColor = vec3(0.6, 0.7, 0.8);
+  vec3 lightColor = vec3(1.0);
+
+  vec3 cloudColor = mix(shadowColor, lightColor, lighting);
+  cloudColor += fresnel * uRimStrength * vec3(0.6, 0.8, 1.0);
+
+  float alpha = density * uAlpha;
+
+  gl_FragColor = vec4(cloudColor, alpha);
 }

@@ -10,14 +10,14 @@ export function init (container) {
     scene.background = new THREE.Color(0xa8c8e0); // soft sky blue so cloud reads clearly
 
     camera = new THREE.PerspectiveCamera(
-      75,
+      60,
       container.clientWidth / container.clientHeight,
       0.1,
-      1000,
+      100
     );
-    camera.position.z = 3;
+    camera.position.set(0, 1.5, 3);
 
-    // controls = new OrbitControls(camera, container);
+    controls = new OrbitControls(camera, container);
 
     renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio || 1);
@@ -32,20 +32,43 @@ export function init (container) {
     noiseTexture.magFilter = THREE.NearestMipmapLinearFilter;
     noiseTexture.minFilter = THREE.NearestMipmapLinearFilter;
 
+    // Planet
+    const planetGeo = new THREE.SphereGeometry(1, 128, 128);
+    const planetMat = new THREE.MeshStandardMaterial({
+      color: 0x223344,
+      roughness: 1.0,
+    });
+    const planet = new THREE.Mesh(planetGeo, planetMat);
+    scene.add(planet);
+
+    // Light
+    const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+    sun.position.set(5, 3, 5);
+    scene.add(sun);
+
     // Ray-marched cloud fullscreen quad (camera passed as uniform so shader compiles)
-    const cloudGeometry = new THREE.PlaneGeometry(10, 10);
+    const cloudGeometry = new THREE.SphereGeometry(1.03, 128, 128);
     const cloudUniforms = {
       uTime: { value: 0 },
-      uResolution: { value: new THREE.Vector2() },
-      uNoiseTexture: { value: new THREE.Uniform(null) },
+      uNoiseScale: { value: 1.5 },
+      uThreshold: { value: 0.2 },
+      uSoftness: { value: 0.25 },
+      uAlpha: { value: 0.6 },
+      uAbsorption: { value: 2.0 },
+      uRimStrength: { value: 0.8 },
+      uLightDir: { value: new THREE.Vector3(1, 0.5, 1).normalize() },
+      uInnerRadius: { value: 1.0 },
+      uOuterRadius: { value: 1.03 }
     };
     cloudMaterial = new THREE.ShaderMaterial({
       vertexShader: cloudVert,
       fragmentShader: cloudFrag,
       uniforms: cloudUniforms,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.NormalBlending
     });
     cloudMesh = new THREE.Mesh(cloudGeometry, cloudMaterial);
-    cloudMesh.position.z = 2;
     scene.add(cloudMesh);
 }
 
@@ -58,9 +81,7 @@ function animate(timestamp) {
   const delta = timer.getDelta(); // Time since last frame
   const elapsed = timer.getElapsed(); // Total time
 
-  cloudMaterial.uniforms.uTime.value = elapsed/5.0;
-  cloudMaterial.uniforms.uResolution.value.set(renderer.domElement.width*window.devicePixelRatio, renderer.domElement.height*window.devicePixelRatio);
-  cloudMaterial.uniforms.uNoiseTexture.value = noiseTexture;
+  cloudMaterial.uniforms.uTime.value = elapsed;
   
   renderer.render(scene, camera);
   // controls.update();
