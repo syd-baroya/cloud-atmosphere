@@ -11,7 +11,7 @@ function ThreeScene() {
     SceneManager.init(container);
     SceneManager.setAnimationLoop();
 
-    const handleResize = () =>SceneManager.resize(container);
+    const handleResize = () =>{SceneManager.resize(container)};
     window.addEventListener('resize', handleResize);
 
     handleResize();
