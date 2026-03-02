@@ -1,13 +1,12 @@
 # Cloud Atmosphere
 
-Interactive WebGL demo of a cloudy planet viewed from space, built with React and Three.js.  
-It renders a textured planet, a glowing atmospheric rim, and a fully procedural cloud layer driven by custom GLSL shaders.
+Interactive WebGL demo of a cloudy planet viewed from space, built with React and Three.js. It renders a textured planet, a glowing atmospheric rim, and a cloud layer driven by custom GLSL shaders.
 
 ## Features
 
-- **Procedural atmosphere**: Thin glowing shell with limb brightening around the planet.
-- **Procedural clouds**: Worley + FBM noise in a spherical shell, with lighting derived from the density field.
-- **Real-time controls**: `lil-gui` panel to tweak shader uniforms (density, softness, absorption, rim, etc.).
+- **Atmosphere**: Thin glowing shell with limb brightening around the planet.
+- **Clouds**: Worley + FBM noise in a spherical shell, with lighting derived from the density field.
+- **Shader adjustment controls**: `lil-gui` panel to tweak shader uniforms (density, softness, absorption, rim, etc.).
 - **Orbit controls**: Smooth camera orbit with constrained zoom so you never clip through the planet or leave the starfield.
 - **Responsive canvas**: Scene resizes automatically with the browser window.
 
@@ -25,13 +24,19 @@ It renders a textured planet, a glowing atmospheric rim, and a fully procedural 
 - Node.js 18+ (LTS recommended)
 - npm (bundled with Node)
 
-### 2. Install dependencies
+### 2. Clone or download this repo
+
+```bash
+git clone https://github.com/syd-baroya/cloud-atmosphere.git
+```
+
+### 3. Install dependencies
 
 ```bash
 npm install
 ```
 
-### 3. Run the dev server
+### 4. Run the dev server
 
 ```bash
 npm run dev
@@ -39,7 +44,7 @@ npm run dev
 
 Vite will print a local URL (by default `http://localhost:5173`) where you can view the scene in your browser.
 
-### 4. Production build & preview
+### 5. Production build & preview
 
 ```bash
 # Build for production
@@ -48,6 +53,7 @@ npm run build
 # Preview the production build locally
 npm run preview
 ```
+Vite will print a local URL (by default `http://localhost:4173`) where you can view the scene in your browser.
 
 ### 5. Linting
 
@@ -63,7 +69,7 @@ npm run lint
   - **Cloud**: noise scale, Worley scale, threshold, softness, alpha, absorption, rim strength.
   - **Atmosphere**: power, coverage, color.
 
-## Project structure (high level)
+## Project structure
 
 ```text
 .
